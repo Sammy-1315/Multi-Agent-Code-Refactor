@@ -1,0 +1,5 @@
+# orchestrator/requirements.txt
+fastapi
+uvicorn
+pydantic
+redis

@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  orchestrator:
+    build: ./orchestrator
+    container_name: orchestrator
+    depends_on:
+      - redis
+    command: python main.py
+
+  performance:
+    build: ./performance
+    container_name: performance
+    depends_on:
+        - redis
+    command: python performance_agent.py
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
