@@ -4,7 +4,7 @@ import time
 import sys
 r = redis.Redis(host='redis', port=6379, db=0)
 
-print("Performance Agent is running in container", flush=True)
+print("Performance Agent is running", flush=True)
 r = redis.Redis(host='redis', port=6379, db=0, socket_timeout=5)
 
 try:
@@ -22,5 +22,7 @@ while True:
         print(f"Received task: {task}", flush=True)
         time.sleep(2)
         
-        print(f"Completed task: {task['task_id']}", flush=True) 
+        resp = {"task_id": 13, "description": "Performance agent response back to the orchestrator"}
+        r.lpush("orchestrator_tasks", json.dumps(resp))
+        print(f"Sent orchestrator task(Performance): {task['task_id']}", flush=True) 
         break
