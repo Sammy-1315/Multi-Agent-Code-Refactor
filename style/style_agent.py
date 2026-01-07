@@ -1,29 +1,94 @@
 import redis
-import json
-import time
 import sys
-r = redis.Redis(host='redis', port=6379, db=0)
+import time
+from shared.schemas import RefactorTask, RefactorResult, TaskStatus
 
-print("Style Agent is running", flush=True)
-r = redis.Redis(host='redis', port=6379, db=0, socket_timeout=5)
+r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 
-try:
-    r.ping()
-    print("Style Agent connected to Redis!", flush=True)
-except Exception as e:
-    print(f"Redis connection failed: {e}", flush=True)
-    sys.exit(1)
+def test_redis():
+    """Verify connection to Redis."""
+    try:
+        r.ping()
+        print("Style Agent connected to Redis!", flush=True)
+    except Exception as e:
+        print(f"Redis connection failed: {e}", flush=True)
+        sys.exit(1)
 
+def main():
+    test_redis()
+    print("Style Agent is listening for tasks...", flush=True)
 
-while True:
-    rtask = r.brpop('style_tasks', timeout=0)
-    if rtask:
-        task = json.loads(rtask[1])
-        print(f"Received task: {task}", flush=True)
-        time.sleep(2)
+    while True:
+        rtask = r.brpop('style_tasks', timeout=0)
         
-        resp = {"task_id": 15, "description": "Style agent response back to the orchestrator"}
-        r.lpush("orchestrator_tasks", json.dumps(resp))
-        print(f"Sent orchestrator task(Style): {task['task_id']}", flush=True) 
+        if rtask:
+            try:
+                task_data = rtask[1]
+                task = RefactorTask.model_validate_json(task_data)
+                print(f"Recieved task: {task.task_id} for file: {task.file_name}", flush=True)
+                
+                # REFACTORING GOES HERE
+                time.sleep(2)
+                
+              
+                result = RefactorResult(
+                    task_id=task.task_id,
+                    agent_type=task.agent_type,
+                    status=TaskStatus.COMPLETED,
+                    diff=f"--- {task.file_name}\n+++ {task.file_name}\n- # Mock Style optimization",
+                    explanation="Style agent processed the file successfully."
+                )
 
-        break
+                r.lpush("orchestrator_tasks", result.model_dump_json())
+                print(f"Style sent to orchestrator: {task.task_id}", flush=True)
+
+            except Exception as e:
+                print(f"Error processing task: {e}", flush=True)
+                # In a real app, you'd send a RefactorResult with status=FAILED here
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import redis
+# import json
+# import time
+# import sys
+# r = redis.Redis(host='redis', port=6379, db=0)
+
+# print("Style Agent is running", flush=True)
+# r = redis.Redis(host='redis', port=6379, db=0, socket_timeout=5)
+
+# try:
+#     r.ping()
+#     print("Style Agent connected to Redis!", flush=True)
+# except Exception as e:
+#     print(f"Redis connection failed: {e}", flush=True)
+#     sys.exit(1)
+
+
+# while True:
+#     rtask = r.brpop('style_tasks', timeout=0)
+#     if rtask:
+#         task = json.loads(rtask[1])
+#         print(f"Received task: {task}", flush=True)
+#         time.sleep(2)
+        
+#         resp = {"task_id": 15, "description": "Style agent response back to the orchestrator"}
+#         r.lpush("orchestrator_tasks", json.dumps(resp))
+#         print(f"Sent orchestrator task(Style): {task['task_id']}", flush=True) 
+
+#         break

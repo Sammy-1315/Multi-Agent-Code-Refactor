@@ -4,6 +4,11 @@ services:
   orchestrator:
     build: ./orchestrator
     container_name: orchestrator
+    volumes:
+      - ./orchestrator:/app
+      - ./shared:/app/shared
+    environment:
+      - PYTHONPATH=/app
     depends_on:
       - redis
     command: python main.py
@@ -11,6 +16,11 @@ services:
   performance:
     build: ./performance
     container_name: performance
+    volumes:
+      - ./performance:/app
+      - ./shared:/app/shared
+    environment:
+      - PYTHONPATH=/app
     depends_on:
         - redis
     command: python performance_agent.py
@@ -18,6 +28,11 @@ services:
   security:
     build: ./security
     container_name: security
+    volumes:
+      - ./security:/app
+      - ./shared:/app/shared
+    environment:
+      - PYTHONPATH=/app
     depends_on:
         - redis
     command: python security_agent.py
@@ -25,11 +40,53 @@ services:
   style:
     build: ./style
     container_name: style
+    volumes:
+      - ./style:/app
+      - ./shared:/app/shared
+    environment:
+      - PYTHONPATH=/app
     depends_on:
         - redis
     command: python style_agent.py
+
   redis:
     image: redis:7-alpine
     container_name: redis
     ports:
       - "6379:6379"
+
+# version: "3.9"
+
+# services:
+#   orchestrator:
+#     build: ./orchestrator
+#     container_name: orchestrator
+#     depends_on:
+#       - redis
+#     command: python main.py
+
+#   performance:
+#     build: ./performance
+#     container_name: performance
+#     depends_on:
+#         - redis
+#     command: python performance_agent.py
+
+#   security:
+#     build: ./security
+#     container_name: security
+#     depends_on:
+#         - redis
+#     command: python security_agent.py
+
+#   style:
+#     build: ./style
+#     container_name: style
+#     depends_on:
+#         - redis
+#     command: python style_agent.py
+#   redis:
+#     image: redis:7-alpine
+#     container_name: redis
+#     ports:
+#       - "6379:6379"
