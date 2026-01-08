@@ -3,3 +3,5 @@ fastapi
 uvicorn
 pydantic
 redis
+google-genai
+unidiff

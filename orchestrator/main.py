@@ -12,7 +12,9 @@ import redis
 import uuid
 import sys
 from shared.schemas import RefactorTask, RefactorResult, AgentType, TaskStatus
-
+from typing import List
+from pathlib import Path
+from unidiff import PatchSet
 # Connect to Redis
 r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 
@@ -27,14 +29,14 @@ def test_redis():
 
 
 
-def send_tasks(file_content: str, file_name: str):
+def send_tasks(file_name: str):
     # send pydantic tasks to each message queue
     batch_id = str(uuid.uuid4())
     
     tasks = [
-        RefactorTask(task_id=batch_id, file_name=file_name, content=file_content, agent_type=AgentType.PERFORMANCE),
-        RefactorTask(task_id=batch_id, file_name=file_name, content=file_content, agent_type=AgentType.SECURITY),
-        RefactorTask(task_id=batch_id, file_name=file_name, content=file_content, agent_type=AgentType.STYLE),
+        RefactorTask(task_id=batch_id, file_name=file_name, agent_type=AgentType.PERFORMANCE),
+        RefactorTask(task_id=batch_id, file_name=file_name, agent_type=AgentType.SECURITY),
+        RefactorTask(task_id=batch_id, file_name=file_name, agent_type=AgentType.STYLE),
     ]
 
     for task in tasks:
@@ -73,12 +75,12 @@ if __name__ == "__main__":
     test_redis()
     
     # Mock file data for testing
-    TEST_CODE = "def add(a, b): return a + b"
-    TEST_FILENAME = "math_utils.py"
-
-    current_batch_id = send_tasks(TEST_CODE, TEST_FILENAME)
+    TEST_FILENAME = "/app/shared/test_file.py"
+    current_batch_id = send_tasks(TEST_FILENAME)
 
     all_results = listen_for_results(expected_count=3)
+    
+    
 
 
 

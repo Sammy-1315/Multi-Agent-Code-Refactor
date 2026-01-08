@@ -3,6 +3,14 @@ import sys
 import time
 from shared.schemas import RefactorTask, RefactorResult, TaskStatus
 
+from google import genai
+import os
+client = genai.Client(api_key=os.getenv("GEMINI_KEY"))
+config = {
+    "response_mime_type": "application/json",
+    "response_schema": RefactorResult,
+}
+
 r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 
 def test_redis():
@@ -13,6 +21,50 @@ def test_redis():
     except Exception as e:
         print(f"Redis connection failed: {e}", flush=True)
         sys.exit(1)
+
+
+def refactor_code(code: str, task) -> RefactorResult:
+    """
+    Sends code to Gemini and returns a structured RefactorResult object.
+    """
+    
+    # The System Instruction defines the 'personality' of this specific agent
+    system_instruction = (
+        """
+        You are a Performance Refactoring Agent. Your job is to improve the following code
+        in terms of runtime and space only. Even if other issues exist, you must only focus on 
+        performance optimizations. Follow the response schema provided and provide the final
+        output in unified diff format. 
+        """
+    )
+
+    user_prompt = (
+       f"""
+        Task given: {task}
+        \n
+        Code: {code}
+        """
+    )
+
+    # Configuration for structured Pydantic output
+    config = {
+        "response_mime_type": "application/json",
+        "response_schema": RefactorResult,
+    }
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=f"{system_instruction}\n\n{user_prompt}",
+            config=config
+        )
+        
+        # .parsed automatically returns the RefactorResult Pydantic object
+        return response.parsed
+
+    except Exception as e:
+        print(f"Gemini API Error: {e}")
+        return None
 
 def main():
     test_redis()
@@ -30,13 +82,23 @@ def main():
                 # REFACTORING GOES HERE
                 time.sleep(2)
                 
-                result = RefactorResult(
-                    task_id=task.task_id,
-                    agent_type=task.agent_type,
-                    status=TaskStatus.COMPLETED,
-                    diff=f"--- {task.file_name}\n+++ {task.file_name}\n- # Mock performance optimization",
-                    explanation="Performance agent processed the file successfully."
-                )
+                try:
+                    with open(task.file_name, 'r') as file:
+                        file_content = file.read()
+
+                except Exception as e:
+                    print(f"Error: {e}")
+
+                # result = RefactorResult(
+                #     task_id=task.task_id,
+                #     agent_type=task.agent_type,
+                #     status=TaskStatus.COMPLETED,
+                #     diff=f"--- {task.file_name}\n+++ {task.file_name}\n- # Mock performance optimization",
+                #     explanation="Performance agent processed the file successfully."
+                # )
+
+                result = refactor_code(file_content, task)
+                print(result.diff, result.explanation)
 
                 r.lpush("orchestrator_tasks", result.model_dump_json())
                 print(f"Performance sent to orchestrator: {task.task_id}", flush=True)

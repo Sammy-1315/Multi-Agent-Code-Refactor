@@ -17,7 +17,6 @@ class TaskStatus(str, Enum):
 class RefactorTask(BaseModel):
     task_id: str = Field(..., description="Unique UUID for the refactoring request")
     file_name: str = Field(..., description="Name of the file being refactored")
-    content: str = Field(..., description="The full source code to be analyzed")
     agent_type: AgentType
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

@@ -4,6 +4,8 @@ services:
   orchestrator:
     build: ./orchestrator
     container_name: orchestrator
+    env_file:
+      - .env
     volumes:
       - ./orchestrator:/app
       - ./shared:/app/shared
@@ -16,6 +18,8 @@ services:
   performance:
     build: ./performance
     container_name: performance
+    env_file:
+      - .env
     volumes:
       - ./performance:/app
       - ./shared:/app/shared
@@ -28,6 +32,8 @@ services:
   security:
     build: ./security
     container_name: security
+    env_file:
+      - .env
     volumes:
       - ./security:/app
       - ./shared:/app/shared
@@ -40,6 +46,8 @@ services:
   style:
     build: ./style
     container_name: style
+    env_file:
+      - .env
     volumes:
       - ./style:/app
       - ./shared:/app/shared
