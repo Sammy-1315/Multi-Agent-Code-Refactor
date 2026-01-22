@@ -9,6 +9,7 @@ client = genai.Client(api_key=os.getenv("GEMINI_KEY"))
 config = {
     "response_mime_type": "application/json",
     "response_schema": RefactorResult,
+    "temperature": 0
 }
 
 r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
@@ -28,14 +29,39 @@ def refactor_code(code: str, task) -> RefactorResult:
     """
     
     # The System Instruction defines the 'personality' of this specific agent
-    system_instruction = (
+    system_instruction = """
+        You are a Style Refactoring Agent.
+
+        Your sole responsibility is to improve code style and adherence to language
+        conventions without altering behavior.
+
+        Constraints:
+        - There are two other agents: security and performance. If an issue would likely be better 
+            addressed by one of these agents, leave it to them and do not modify. 
+        - Consider ONLY style, formatting, and language-idiomatic conventions.
+        - Explicitly IGNORE performance, security, correctness, and architectural issues.
+        - Do NOT change logic, control flow, or data structures.
+        - Do NOT introduce new functionality or remove existing behavior.
+
+        Style Scope (non-exhaustive):
+        - Naming conventions (variables, functions, classes)
+        - Formatting, spacing, and indentation
+        - Language-idiomatic constructs
+        - Comment clarity and docstring conventions
+        - File and import organization (style-only)
+        - Lint-level issues that do NOT affect behavior
+
+        Output Requirements:
+        - Apply the minimal set of changes needed to achieve idiomatic, consistent style.
+        - Prefer standard language conventions over personal or subjective preferences.
+        - If no meaningful style improvements exist, explicitly state so.
+
+        Response Format:
+        - The diff field MUST be in unified diff format.
+        - The diff field should not include any comments, just the unified diff
+
         """
-        You are a Style Refactoring Agent. Your job is to improve the following code
-        in terms of style and language conventions only. Even if other issues exist, 
-        you must only focus on style optimizations. Follow the response schema provided and 
-        provide the final output in unified diff format. 
-        """
-    )
+
 
     user_prompt = (
        f"""
@@ -44,12 +70,6 @@ def refactor_code(code: str, task) -> RefactorResult:
         Code: {code}
         """
     )
-
-    # Configuration for structured Pydantic output
-    config = {
-        "response_mime_type": "application/json",
-        "response_schema": RefactorResult,
-    }
 
     try:
         response = client.models.generate_content(
@@ -80,7 +100,6 @@ def main():
                 print(f"Recieved task: {task.task_id} for file: {task.file_name}", flush=True)
                 
                 # REFACTORING GOES HERE
-                time.sleep(2)
                 try:
                     with open(task.file_name, 'r') as file:
                         file_content = file.read()
@@ -89,15 +108,7 @@ def main():
                     print(f"Error: {e}")
                 
               
-                # result = RefactorResult(
-                #     task_id=task.task_id,
-                #     agent_type=task.agent_type,
-                #     status=TaskStatus.COMPLETED,
-                #     diff=f"--- {task.file_name}\n+++ {task.file_name}\n- # Mock Style optimization",
-                #     explanation="Style agent processed the file successfully."
-                # )
                 result = refactor_code(file_content, task)
-                print(result.diff, result.explanation)
 
 
                 r.lpush("orchestrator_tasks", result.model_dump_json())
@@ -114,42 +125,3 @@ if __name__ == "__main__":
 
 
 
-
-
-
-
-
-
-
-
-
-
-# import redis
-# import json
-# import time
-# import sys
-# r = redis.Redis(host='redis', port=6379, db=0)
-
-# print("Style Agent is running", flush=True)
-# r = redis.Redis(host='redis', port=6379, db=0, socket_timeout=5)
-
-# try:
-#     r.ping()
-#     print("Style Agent connected to Redis!", flush=True)
-# except Exception as e:
-#     print(f"Redis connection failed: {e}", flush=True)
-#     sys.exit(1)
-
-
-# while True:
-#     rtask = r.brpop('style_tasks', timeout=0)
-#     if rtask:
-#         task = json.loads(rtask[1])
-#         print(f"Received task: {task}", flush=True)
-#         time.sleep(2)
-        
-#         resp = {"task_id": 15, "description": "Style agent response back to the orchestrator"}
-#         r.lpush("orchestrator_tasks", json.dumps(resp))
-#         print(f"Sent orchestrator task(Style): {task['task_id']}", flush=True) 
-
-#         break

@@ -27,3 +27,10 @@ class RefactorResult(BaseModel):
     diff: Optional[str] = Field(None, description="The Unified Diff output from the agent")
     explanation: Optional[str] = Field(None, description="LLM's reasoning for the changes")
     error: Optional[str] = Field(None, description="Error message if the task failed")
+
+class ConsolidateAgentOutput(BaseModel):
+    original_file_path: str
+    original_content: str
+    final_content: str
+
+    

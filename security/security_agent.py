@@ -9,6 +9,8 @@ client = genai.Client(api_key=os.getenv("GEMINI_KEY"))
 config = {
     "response_mime_type": "application/json",
     "response_schema": RefactorResult,
+    "temperature": 0
+
 }
 
 r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
@@ -28,14 +30,43 @@ def refactor_code(code: str, task) -> RefactorResult:
     """
     
     # The System Instruction defines the 'personality' of this specific agent
-    system_instruction = (
+    system_instruction = """
+        You are a Security Refactoring Agent.
+
+        Your sole responsibility is to identify and mitigate security vulnerabilities
+        in the provided code.
+
+        Constraints:
+        - There are two other agents: performance and style. If an issue would likely be better 
+            addressed by one of these agents, leave it to them and do not modify. 
+        - Consider ONLY security-related issues (vulnerabilities, exploitability, misuse).
+        - Explicitly IGNORE performance, readability, style, naming, architecture,
+        and best practices unless they directly affect security.
+        - Do NOT introduce new features or non-security-related refactors.
+        - Do NOT change external behavior unless required to eliminate a security risk.
+
+        Security Scope (non-exhaustive):
+        - Injection vulnerabilities (SQL, command, code, template)
+        - Authentication and authorization flaws
+        - Secrets handling and credential exposure
+        - Unsafe deserialization
+        - Insecure cryptography or randomness
+        - Input validation and output encoding
+        - Privilege escalation vectors
+        - Race conditions with security impact
+        - Dependency misuse with known security implications
+
+        Output Requirements:
+        - Apply the minimal set of changes required to remediate security issues.
+        - Prefer principled, defense-in-depth fixes over superficial mitigations.
+        - If no meaningful security vulnerabilities exist, explicitly state so.
+
+        Response Format:
+        - The diff field MUST be in unified diff format.
+        - The diff field should not include any comments, just the diff
+
         """
-        You are a Security Refactoring Agent. Your job is to improve the following code
-        in terms of security and vulnerabilities only. Even if other issues exist, 
-        you must only focus on security optimizations. Follow the response schema provided and 
-        provide the final output in unified diff format. 
-        """
-    )
+
 
     user_prompt = (
        f"""
@@ -45,11 +76,6 @@ def refactor_code(code: str, task) -> RefactorResult:
         """
     )
 
-    # Configuration for structured Pydantic output
-    config = {
-        "response_mime_type": "application/json",
-        "response_schema": RefactorResult,
-    }
 
     try:
         response = client.models.generate_content(
@@ -79,7 +105,6 @@ def main():
                 print(f"Recieved task: {task.task_id} for file: {task.file_name}", flush=True)
                 
                 # REFACTORING GOES HERE
-                time.sleep(2)
                 try:
                     with open(task.file_name, 'r') as file:
                         file_content = file.read()
@@ -87,15 +112,8 @@ def main():
                 except Exception as e:
                     print(f"Error: {e}")
                 
-                # result = RefactorResult(
-                #     task_id=task.task_id,
-                #     agent_type=task.agent_type,
-                #     status=TaskStatus.COMPLETED,
-                #     diff=f"--- {task.file_name}\n+++ {task.file_name}\n- # Mock security optimization",
-                #     explanation="securitu agent processed the file successfully."
-                # )
+               
                 result = refactor_code(file_content, task)
-                print(result.diff, result.explanation)
 
 
                 r.lpush("orchestrator_tasks", result.model_dump_json())
@@ -116,34 +134,3 @@ if __name__ == "__main__":
 
 
 
-
-
-
-# import redis
-# import json
-# import time
-# import sys
-# r = redis.Redis(host='redis', port=6379, db=0)
-
-# print("Security Agent is running", flush=True)
-# r = redis.Redis(host='redis', port=6379, db=0, socket_timeout=5)
-
-# try:
-#     r.ping()
-#     print("Security Agent connected to Redis!", flush=True)
-# except Exception as e:
-#     print(f"Redis connection failed: {e}", flush=True)
-#     sys.exit(1)
-
-
-# while True:
-#     rtask = r.brpop('security_tasks', timeout=0)
-#     if rtask:
-#         task = json.loads(rtask[1])
-#         print(f"Received task: {task}", flush=True)
-#         time.sleep(2)
-        
-#         resp = {"task_id": 14, "description": "Security agent response back to the orchestrator"}
-#         r.lpush("orchestrator_tasks", json.dumps(resp))
-#         print(f"Sent orchestrator task(Security): {task['task_id']}", flush=True) 
-#         break

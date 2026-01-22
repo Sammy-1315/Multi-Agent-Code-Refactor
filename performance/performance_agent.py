@@ -9,6 +9,8 @@ client = genai.Client(api_key=os.getenv("GEMINI_KEY"))
 config = {
     "response_mime_type": "application/json",
     "response_schema": RefactorResult,
+    "temperature": 0
+
 }
 
 r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
@@ -29,14 +31,32 @@ def refactor_code(code: str, task) -> RefactorResult:
     """
     
     # The System Instruction defines the 'personality' of this specific agent
-    system_instruction = (
+    system_instruction = """
+        You are a Performance Refactoring Agent.
+
+        Your sole responsibility is to identify and implement optimizations that improve
+        runtime complexity, constant-factor performance, and/or memory usage.
+
+        Constraints:
+        - There are two other agents: security and style. If an issue would likely be better 
+            addressed by one of these agents, leave it to them and do not modify. 
+        - Consider ONLY performance-related issues (time and space).
+        - Explicitly IGNORE correctness, readability, style, naming, architecture,
+        error handling, security, and best practices unless they directly impact
+        runtime or memory.
+        - Do NOT introduce new functionality.
+        - Do NOT change external behavior unless it results in measurable performance gains.
+
+        Output Requirements:
+        - Apply the minimal set of changes required to achieve performance improvements.
+        - Prefer algorithmic and data-structure improvements over micro-optimizations.
+        - If no meaningful performance improvements exist, explicitly state so.
+
+        Response Format:
+        - The diff field MUST be in unified diff format.
+        - The diff field should not include any comments, just the diff
         """
-        You are a Performance Refactoring Agent. Your job is to improve the following code
-        in terms of runtime and space only. Even if other issues exist, you must only focus on 
-        performance optimizations. Follow the response schema provided and provide the final
-        output in unified diff format. 
-        """
-    )
+
 
     user_prompt = (
        f"""
@@ -46,11 +66,6 @@ def refactor_code(code: str, task) -> RefactorResult:
         """
     )
 
-    # Configuration for structured Pydantic output
-    config = {
-        "response_mime_type": "application/json",
-        "response_schema": RefactorResult,
-    }
 
     try:
         response = client.models.generate_content(
@@ -80,7 +95,6 @@ def main():
                 print(f"Recieved task: {task.task_id} for file: {task.file_name}", flush=True)
                 
                 # REFACTORING GOES HERE
-                time.sleep(2)
                 
                 try:
                     with open(task.file_name, 'r') as file:
@@ -89,16 +103,7 @@ def main():
                 except Exception as e:
                     print(f"Error: {e}")
 
-                # result = RefactorResult(
-                #     task_id=task.task_id,
-                #     agent_type=task.agent_type,
-                #     status=TaskStatus.COMPLETED,
-                #     diff=f"--- {task.file_name}\n+++ {task.file_name}\n- # Mock performance optimization",
-                #     explanation="Performance agent processed the file successfully."
-                # )
-
                 result = refactor_code(file_content, task)
-                print(result.diff, result.explanation)
 
                 r.lpush("orchestrator_tasks", result.model_dump_json())
                 print(f"Performance sent to orchestrator: {task.task_id}", flush=True)
@@ -122,33 +127,3 @@ if __name__ == "__main__":
 
 
 
-
-
-# import redis
-# import json
-# import time
-# import sys
-# r = redis.Redis(host='redis', port=6379, db=0)
-
-# print("Performance Agent is running", flush=True)
-# r = redis.Redis(host='redis', port=6379, db=0, socket_timeout=5)
-
-# try:
-#     r.ping()
-#     print("Performance Agent connected to Redis!", flush=True)
-# except Exception as e:
-#     print(f"Redis connection failed: {e}", flush=True)
-#     sys.exit(1)
-
-
-# while True:
-#     rtask = r.brpop('performance_tasks', timeout=0)
-#     if rtask:
-#         task = json.loads(rtask[1])
-#         print(f"Received task: {task}", flush=True)
-#         time.sleep(2)
-        
-#         resp = {"task_id": 13, "description": "Performance agent response back to the orchestrator"}
-#         r.lpush("orchestrator_tasks", json.dumps(resp))
-#         print(f"Sent orchestrator task(Performance): {task['task_id']}", flush=True) 
-#         break
