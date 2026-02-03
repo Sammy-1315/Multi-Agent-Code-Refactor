@@ -12,4 +12,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Run the performance agent
-CMD ["python", "security_agent.py"]
+CMD ["python", "architecture_agent.py"]

@@ -19,7 +19,7 @@ def test_redis():
     """Verify connection to Redis."""
     try:
         r.ping()
-        print("Security Agent connected to Redis!", flush=True)
+        print("Architecture Agent connected to Redis!", flush=True)
     except Exception as e:
         print(f"Redis connection failed: {e}", flush=True)
         sys.exit(1)
@@ -31,42 +31,48 @@ def refactor_code(code: str, task) -> RefactorResult:
     
     # The System Instruction defines the 'personality' of this specific agent
     system_instruction = """
-        You are a Security Refactoring Agent.
+You are an Architecture Refactoring Agent.
 
-        Your sole responsibility is to identify and mitigate security vulnerabilities
-        in the provided code.
+Goal:
+Improve the high-level structure, design, and modularity of production code
+to make it easier to understand, extend, and maintain over time.
 
-        Constraints:
-        - There are two other agents: performance and style. If an issue would likely be better 
-            addressed by one of these agents, leave it to them and do not modify. 
-        - Consider ONLY security-related issues (vulnerabilities, exploitability, misuse).
-        - Explicitly IGNORE performance, readability, style, naming, architecture,
-        and best practices unless they directly affect security.
-        - Do NOT introduce new features or non-security-related refactors.
-        - Do NOT change external behavior unless required to eliminate a security risk.
+Architecture concerns include:
+- Separation of concerns and responsibility boundaries
+- Module and file-level organization
+- Dependency direction and inversion
+- Abstraction layers (domain vs orchestration vs I/O)
+- Reducing tight coupling between components
+- Extracting cohesive subsystems
+- Eliminating architectural smells (god objects, feature envy, leaky abstractions)
 
-        Security Scope (non-exhaustive):
-        - Injection vulnerabilities (SQL, command, code, template)
-        - Authentication and authorization flaws
-        - Secrets handling and credential exposure
-        - Unsafe deserialization
-        - Insecure cryptography or randomness
-        - Input validation and output encoding
-        - Privilege escalation vectors
-        - Race conditions with security impact
-        - Dependency misuse with known security implications
+Constraints:
+- Preserve external behavior and public APIs.
+- Do NOT introduce new features.
+- Do NOT optimize for performance unless it improves structure.
+- Do NOT make stylistic-only changes.
+- Prefer minimal, principled structural changes over large rewrites.
 
-        Output Requirements:
-        - Apply the minimal set of changes required to remediate security issues.
-        - Prefer principled, defense-in-depth fixes over superficial mitigations.
-        - If no meaningful security vulnerabilities exist, explicitly state so.
+If no architectural improvements are necessary:
+- Return an empty unified diff.
 
-        Response Format:
-        - The diff field MUST be in unified diff format.
-        - The diff field should not include any comments, just the diff
+Unified Diff Format (follow exactly):
 
-        """
-
+--- a/example.py
++++ b/example.py
+@@ -1,10 +1,16 @@
+-def process_order(order_id, db):
+-    order = db.fetch_order(order_id)
+-    total = sum(item.price for item in order.items)
+-    db.save_total(order_id, total)
++def process_order(order_id, order_repo):
++    order = order_repo.fetch(order_id)
++    total = calculate_total(order)
++    order_repo.save_total(order_id, total)
++
++def calculate_total(order):
++    return sum(item.price for item in order.items)
+"""
 
     user_prompt = (
        f"""
@@ -93,10 +99,10 @@ def refactor_code(code: str, task) -> RefactorResult:
 
 def main():
     test_redis()
-    print("Security Agent is listening for tasks...", flush=True)
+    print("Architecture Agent is listening for tasks...", flush=True)
 
     while True:
-        rtask = r.brpop('security_tasks', timeout=0)
+        rtask = r.brpop('architecture_tasks', timeout=0)
         
         if rtask:
             try:
@@ -110,14 +116,15 @@ def main():
                         file_content = file.read()
 
                 except Exception as e:
-                    print(f"Error: {e}")
+                    print(f"Error: {e}", flush=True)
                 
                
                 result = refactor_code(file_content, task)
 
+                print(result.diff, flush=True)
 
                 r.lpush("orchestrator_tasks", result.model_dump_json())
-                print(f"Security sent to orchestrator: {task.task_id}", flush=True)
+                print(f"Architecture sent to orchestrator: {task.task_id}", flush=True)
 
             except Exception as e:
                 print(f"Error processing task: {e}", flush=True)

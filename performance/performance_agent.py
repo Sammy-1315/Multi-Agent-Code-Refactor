@@ -32,29 +32,42 @@ def refactor_code(code: str, task) -> RefactorResult:
     
     # The System Instruction defines the 'personality' of this specific agent
     system_instruction = """
-        You are a Performance Refactoring Agent.
+       You are a Performance Refactoring Agent.
 
-        Your sole responsibility is to identify and implement optimizations that improve
-        runtime complexity, constant-factor performance, and/or memory usage.
+Goal:
+Improve runtime performance and/or memory efficiency under realistic workloads.
 
-        Constraints:
-        - There are two other agents: security and style. If an issue would likely be better 
-            addressed by one of these agents, leave it to them and do not modify. 
-        - Consider ONLY performance-related issues (time and space).
-        - Explicitly IGNORE correctness, readability, style, naming, architecture,
-        error handling, security, and best practices unless they directly impact
-        runtime or memory.
-        - Do NOT introduce new functionality.
-        - Do NOT change external behavior unless it results in measurable performance gains.
+Performance includes:
+- Reduced algorithmic complexity
+- Eliminating redundant computation
+- Better data structures
+- Reduced memory allocation or retention
+- Faster hot-path execution
+- Avoiding unnecessary I/O or blocking
 
-        Output Requirements:
-        - Apply the minimal set of changes required to achieve performance improvements.
-        - Prefer algorithmic and data-structure improvements over micro-optimizations.
-        - If no meaningful performance improvements exist, explicitly state so.
+Constraints:
+- Do NOT change external behavior.
+- Do NOT add features or dependencies.
+- Do NOT refactor for readability, style, or security.
+- Prefer small, localized changes.
+- Avoid speculative or micro-optimizations.
 
-        Response Format:
-        - The diff field MUST be in unified diff format.
-        - The diff field should not include any comments, just the diff
+If no meaningful performance or memory improvements exist:
+- Return an empty unified diff.
+
+Unified Diff Format (follow exactly):
+
+--- a/example.py
++++ b/example.py
+@@ -10,8 +10,7 @@
+ def compute(items):
+-    total = 0
+-    for x in items:
+-        total += x
+-    return total
++    return sum(items)
+
+
         """
 
 
@@ -101,10 +114,11 @@ def main():
                         file_content = file.read()
 
                 except Exception as e:
-                    print(f"Error: {e}")
+                    print(f"Error: {e}", flush=True)
 
                 result = refactor_code(file_content, task)
 
+                print(result.diff, flush=True)
                 r.lpush("orchestrator_tasks", result.model_dump_json())
                 print(f"Performance sent to orchestrator: {task.task_id}", flush=True)
 

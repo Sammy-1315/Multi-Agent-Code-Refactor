@@ -16,6 +16,8 @@ from typing import List
 from pathlib import Path
 from unidiff import PatchSet
 import json
+import os
+import tempfile
 # Connect to Redis
 r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 
@@ -46,7 +48,7 @@ def send_tasks(file_name: str):
     
     tasks = [
         RefactorTask(task_id=batch_id, file_name=file_name, agent_type=AgentType.PERFORMANCE),
-        RefactorTask(task_id=batch_id, file_name=file_name, agent_type=AgentType.SECURITY),
+        RefactorTask(task_id=batch_id, file_name=file_name, agent_type=AgentType.ARCHITECTURE),
         RefactorTask(task_id=batch_id, file_name=file_name, agent_type=AgentType.STYLE),
     ]
 
@@ -93,23 +95,53 @@ def consolidate_output(results, file_name):
         if result.diff:  # only include if a diff exists
             agent_diffs_text += f"\n--- {result.agent_type} diff ---\n{result.diff}\n"
 
-    priority_order = {"SECURITY": 0, "PERFORMANCE": 1, "STYLE": 2}
+    priority_order = {"ARCHITECTURE": 0, "PERFORMANCE": 1, "STYLE": 2}
     results_sorted = sorted(results, key=lambda r: priority_order[r.agent_type.value.upper()])
 
     system_instruction = """
-        You are a Refactoring Orchestrator AI. Your task is to consolidate multiple agent diffs into a single final unified diff.
+        You are a Refactoring Orchestrator.
 
-        Constraints:
-        - Apply diffs in the following order: SECURITY → PERFORMANCE → STYLE.
-        - Do not change any code outside the provided diffs unless strictly necessary to resolve conflicts.
-        - Ensure the final code preserves the original functionality.
-        - Output should be a single unified diff representing all applied changes.
-        - Do not add explanations, commentary, or extra formatting—only provide the diff.
+Input:
+- Original source file
+- Unified diffs from ARCHITECTURE, PERFORMANCE, and STYLE agents
+
+Goal:
+Produce a single final unified diff for the original file.
+
+Ordering & Precedence:
+1. Apply ARCHITECTURE diff
+2. Apply PERFORMANCE diff
+3. Apply STYLE diff
+
+Conflict Rules:
+- Earlier agents take precedence over later agents.
+- If multiple diffs modify the same lines:
+  - Keep the earlier agent’s change.
+  - Discard or partially apply later diffs as needed.
+- Never rewrite code to merge intent.
+- If a diff hunk cannot be applied cleanly, drop it.
+
+Constraints:
+- Only apply changes that appear in the agent diffs.
+- Do NOT invent new changes.
+- Do NOT refactor or improve code beyond resolving conflicts.
+- Preserve original external behavior
+
+Unified Diff Format (follow exactly):
+
+--- a/example.py
++++ b/example.py
+@@ -3,7 +3,7 @@
+ def add(a, b):
+-    return a+b
++    return a + b
+
+
         """
 
 
     user_prompt = f"""
-        Task: Consolidate the following agent diffs into a single final diff for this source file. Go in order of SECURITY -> PERFORMANCE -> STYLE
+        Task: Consolidate the following agent diffs into a single final unified diff for this source file. Go in order of ARCHITECTURE -> PERFORMANCE -> STYLE
 
         Original file path: {file_name}
         Original content:
@@ -144,7 +176,20 @@ if __name__ == "__main__":
 
     all_results = listen_for_results(expected_count=3)
     final_result = consolidate_output(all_results, TEST_FILENAME)
-    print(final_result.final_content)    
+    print(final_result.final_diff)
+    SHARED_DIR = "/app/shared"
+
+
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".diff",
+        delete=False,
+        dir=SHARED_DIR,
+    ) as tmp_file:
+        tmp_file.write(final_result.final_diff)
+        temp_path = tmp_file.name
+
+    print(f"Final diff written to: {temp_path}")
     
 
 

@@ -5,7 +5,7 @@ from datetime import datetime
 
 class AgentType(str, Enum):
     PERFORMANCE = "performance"
-    SECURITY = "security"
+    ARCHITECTURE = "architecture"
     STYLE = "style"
 
 class TaskStatus(str, Enum):
@@ -31,6 +31,6 @@ class RefactorResult(BaseModel):
 class ConsolidateAgentOutput(BaseModel):
     original_file_path: str
     original_content: str
-    final_content: str
+    final_diff: str
 
     

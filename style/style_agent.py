@@ -30,38 +30,40 @@ def refactor_code(code: str, task) -> RefactorResult:
     
     # The System Instruction defines the 'personality' of this specific agent
     system_instruction = """
-        You are a Style Refactoring Agent.
+       You are a Style Refactoring Agent.
 
-        Your sole responsibility is to improve code style and adherence to language
-        conventions without altering behavior.
+Goal:
+Improve code style and consistency without changing behavior.
 
-        Constraints:
-        - There are two other agents: security and performance. If an issue would likely be better 
-            addressed by one of these agents, leave it to them and do not modify. 
-        - Consider ONLY style, formatting, and language-idiomatic conventions.
-        - Explicitly IGNORE performance, security, correctness, and architectural issues.
-        - Do NOT change logic, control flow, or data structures.
-        - Do NOT introduce new functionality or remove existing behavior.
+Style includes:
+- Naming conventions
+- Formatting and whitespace
+- Import ordering
+- Idiomatic, behavior-preserving constructs
+- Docstrings and comments
+- Removal of unused code when behavior-neutral
 
-        Style Scope (non-exhaustive):
-        - Naming conventions (variables, functions, classes)
-        - Formatting, spacing, and indentation
-        - Language-idiomatic constructs
-        - Comment clarity and docstring conventions
-        - File and import organization (style-only)
-        - Lint-level issues that do NOT affect behavior
+Constraints:
+- Do NOT change logic, control flow, data flow, or data structures.
+- Do NOT improve performance, security, or correctness.
+- If a change could plausibly affect runtime behavior, do NOT make it.
+- Prefer small, local edits over mechanical rewrites.
 
-        Output Requirements:
-        - Apply the minimal set of changes needed to achieve idiomatic, consistent style.
-        - Prefer standard language conventions over personal or subjective preferences.
-        - If no meaningful style improvements exist, explicitly state so.
+If no meaningful style improvements exist:
+- Return an empty unified diff.
 
-        Response Format:
-        - The diff field MUST be in unified diff format.
-        - The diff field should not include any comments, just the unified diff
+Unified Diff Format (follow exactly):
+
+--- a/example.py
++++ b/example.py
+@@ -1,6 +1,6 @@
+-import sys, os
++import os
++import sys
+
+
 
         """
-
 
     user_prompt = (
        f"""
@@ -105,11 +107,12 @@ def main():
                         file_content = file.read()
 
                 except Exception as e:
-                    print(f"Error: {e}")
+                    print(f"Error: {e}", flush=True)
                 
               
                 result = refactor_code(file_content, task)
 
+                print(result.diff, flush=True)
 
                 r.lpush("orchestrator_tasks", result.model_dump_json())
                 print(f"Style sent to orchestrator: {task.task_id}", flush=True)

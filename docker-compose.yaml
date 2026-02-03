@@ -29,19 +29,19 @@ services:
         - redis
     command: python performance_agent.py
 
-  security:
-    build: ./security
-    container_name: security
+  architecture:
+    build: ./architecture
+    container_name: architecture
     env_file:
       - .env
     volumes:
-      - ./security:/app
+      - ./architecture:/app
       - ./shared:/app/shared
     environment:
       - PYTHONPATH=/app
     depends_on:
         - redis
-    command: python security_agent.py
+    command: python architecture_agent.py
 
   style:
     build: ./style
