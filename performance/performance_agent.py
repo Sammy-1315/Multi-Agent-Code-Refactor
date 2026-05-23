@@ -10,10 +10,51 @@ config = {
     "response_mime_type": "application/json",
     "response_schema": RefactorResult,
     "temperature": 0
-
 }
 
 r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
+
+system_instruction = """
+        You are a Performance Refactoring Agent.
+
+        Goal:
+        Improve runtime performance and/or memory efficiency under realistic workloads.
+
+        Performance includes:
+        - Reduced algorithmic complexity
+        - Eliminating redundant computation
+        - Better data structures
+        - Reduced memory allocation or retention
+        - Faster hot-path execution
+        - Avoiding unnecessary I/O or blocking
+
+        Constraints:
+        - Do NOT change external behavior.
+        - Do NOT add features or dependencies.
+        - Do NOT refactor for readability, style, or architecture.
+        - Prefer small, localized changes.
+        - Avoid speculative or micro-optimizations.
+
+        If no meaningful performance or memory improvements exist:
+        - Return an empty unified diff.
+
+        Unified Diff Format (follow exactly):
+
+        --- a/example.py
+        +++ b/example.py
+        @@ -10,8 +10,7 @@
+        def compute(items):
+        -    total = 0
+        -    for x in items:
+        -        total += x
+        -    return total
+        +    return sum(items)
+
+
+        """
+
+
+
 
 def test_redis():
     """Verify connection to Redis."""
@@ -29,48 +70,9 @@ def refactor_code(code: str, task) -> RefactorResult:
     """
     Sends code to Gemini and returns a structured RefactorResult object.
     """
-    
-    # The System Instruction defines the 'personality' of this specific agent
-    system_instruction = """
-       You are a Performance Refactoring Agent.
-
-Goal:
-Improve runtime performance and/or memory efficiency under realistic workloads.
-
-Performance includes:
-- Reduced algorithmic complexity
-- Eliminating redundant computation
-- Better data structures
-- Reduced memory allocation or retention
-- Faster hot-path execution
-- Avoiding unnecessary I/O or blocking
-
-Constraints:
-- Do NOT change external behavior.
-- Do NOT add features or dependencies.
-- Do NOT refactor for readability, style, or security.
-- Prefer small, localized changes.
-- Avoid speculative or micro-optimizations.
-
-If no meaningful performance or memory improvements exist:
-- Return an empty unified diff.
-
-Unified Diff Format (follow exactly):
-
---- a/example.py
-+++ b/example.py
-@@ -10,8 +10,7 @@
- def compute(items):
--    total = 0
--    for x in items:
--        total += x
--    return total
-+    return sum(items)
 
 
-        """
-
-
+    # system instruction below
     user_prompt = (
        f"""
         Task given: {task}
@@ -117,9 +119,10 @@ def main():
                     print(f"Error: {e}", flush=True)
 
                 result = refactor_code(file_content, task)
-
-                print(result.diff, flush=True)
+                print(result.diff)
+                print(result.explanation)
                 r.lpush("orchestrator_tasks", result.model_dump_json())
+
                 print(f"Performance sent to orchestrator: {task.task_id}", flush=True)
 
             except Exception as e:
@@ -128,16 +131,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
 

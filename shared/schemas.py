@@ -31,6 +31,6 @@ class RefactorResult(BaseModel):
 class ConsolidateAgentOutput(BaseModel):
     original_file_path: str
     original_content: str
-    final_diff: str
+    final_content: str
 
     

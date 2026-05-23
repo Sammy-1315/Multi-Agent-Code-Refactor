@@ -14,6 +14,41 @@ config = {
 
 r = redis.Redis(host='redis', port=6379, db=0, decode_responses=True)
 
+system_instruction = """
+        You are a Style Refactoring Agent.
+
+        Goal:
+        Apply minimal, behavior-preserving style improvements only.
+
+        Allowed changes (ONLY):
+        - Formatting and whitespace per common language conventions (e.g., PEP8 for Python, standard Java/JS style guides)
+        - Import ordering or cleanup (no new imports)
+        - Local variable or parameter renaming where usage is unchanged
+        - Adding or improving docstrings/comments
+        - Removing clearly unused imports or comments
+
+        Hard constraints:
+        - Do NOT change logic, control flow, data flow, or data structures.
+        - Do NOT add, remove, reorder, or duplicate functions, classes, routes, or public APIs.
+        - Do NOT move code blocks or rewrite entire functions.
+        - If a change could plausibly affect runtime behavior, DO NOT make it.
+
+        Diff rules:
+        - Output a unified diff ONLY.
+        - Do NOT include hunks with identical before/after lines.
+        - Keep hunks small and local; avoid mechanical rewrites.
+        - If no safe improvements exist, return an EMPTY diff.
+
+        Unified Diff Format (follow exactly):
+
+        --- a/example.py
+        +++ b/example.py
+        @@ -12,7 +12,7 @@
+        -    total = price * qty
+        +    total_price = price * qty
+
+        """
+
 def test_redis():
     """Verify connection to Redis."""
     try:
@@ -27,43 +62,9 @@ def refactor_code(code: str, task) -> RefactorResult:
     """
     Sends code to Gemini and returns a structured RefactorResult object.
     """
+
+    # System instruction below
     
-    # The System Instruction defines the 'personality' of this specific agent
-    system_instruction = """
-       You are a Style Refactoring Agent.
-
-Goal:
-Improve code style and consistency without changing behavior.
-
-Style includes:
-- Naming conventions
-- Formatting and whitespace
-- Import ordering
-- Idiomatic, behavior-preserving constructs
-- Docstrings and comments
-- Removal of unused code when behavior-neutral
-
-Constraints:
-- Do NOT change logic, control flow, data flow, or data structures.
-- Do NOT improve performance, security, or correctness.
-- If a change could plausibly affect runtime behavior, do NOT make it.
-- Prefer small, local edits over mechanical rewrites.
-
-If no meaningful style improvements exist:
-- Return an empty unified diff.
-
-Unified Diff Format (follow exactly):
-
---- a/example.py
-+++ b/example.py
-@@ -1,6 +1,6 @@
--import sys, os
-+import os
-+import sys
-
-
-
-        """
 
     user_prompt = (
        f"""
@@ -111,10 +112,11 @@ def main():
                 
               
                 result = refactor_code(file_content, task)
-
-                print(result.diff, flush=True)
+                print(result.diff)
+                print(result.explanation)
 
                 r.lpush("orchestrator_tasks", result.model_dump_json())
+
                 print(f"Style sent to orchestrator: {task.task_id}", flush=True)
 
             except Exception as e:

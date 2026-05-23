@@ -31,6 +31,29 @@ config = {
     "temperature": 0
 
 }
+
+system_instruction = """
+        You are a Refactoring Orchestrator.
+
+        INPUT:
+        - Original source file.
+        - Unified diffs from three agents: [1] ARCHITECTURE, [2] PERFORMANCE, [3] STYLE.
+
+        GOAL:
+        Produce a single refactored code file by merging agent diff changes in order of precedence (1 > 2 > 3).
+
+        CONFLICT & MERGE RULES:
+        1. OVERLAPPING CHANGES: Merge hunks where logically additive (e.g., if ARCHITECTURE moves a block and STYLE renames a variable within that same block, include both).
+        2. EXCLUSIVE CHANGES: If changes are mutually exclusive or incompatible, the earlier agent takes absolute precedence. Discard the conflicting portion of the later diff.
+        3. NO INVENTION: Do not "improve" code or bridge gaps between agents. Only apply what is explicitly provided.
+        4. ATOMICITY: If a later diff hunk cannot be applied cleanly to the version resulting from earlier agents, drop that hunk.
+    
+        CONSTRAINTS:
+        - Preserve original external behavior.
+        - Output ONLY the final code file
+        - Do not refactor beyond the provided inputs.
+        """
+
 def test_redis():
     # test redis connection
     try:
@@ -93,58 +116,18 @@ def consolidate_output(results, file_name):
     agent_diffs_text = ""
     for result in results:
         if result.diff:  # only include if a diff exists
-            agent_diffs_text += f"\n--- {result.agent_type} diff ---\n{result.diff}\n"
+            agent_diffs_text += f"\n--- {result.agent_type} diff ---\n{result.diff} explanation ---\n{result.explanation}\n"
 
     priority_order = {"ARCHITECTURE": 0, "PERFORMANCE": 1, "STYLE": 2}
     results_sorted = sorted(results, key=lambda r: priority_order[r.agent_type.value.upper()])
 
-    system_instruction = """
-        You are a Refactoring Orchestrator.
-
-Input:
-- Original source file
-- Unified diffs from ARCHITECTURE, PERFORMANCE, and STYLE agents
-
-Goal:
-Produce a single final unified diff for the original file.
-
-Ordering & Precedence:
-1. Apply ARCHITECTURE diff
-2. Apply PERFORMANCE diff
-3. Apply STYLE diff
-
-Conflict Rules:
-- Earlier agents take precedence over later agents.
-- If multiple diffs modify the same lines:
-  - Keep the earlier agent’s change.
-  - Discard or partially apply later diffs as needed.
-- Never rewrite code to merge intent.
-- If a diff hunk cannot be applied cleanly, drop it.
-
-Constraints:
-- Only apply changes that appear in the agent diffs.
-- Do NOT invent new changes.
-- Do NOT refactor or improve code beyond resolving conflicts.
-- Preserve original external behavior
-
-Unified Diff Format (follow exactly):
-
---- a/example.py
-+++ b/example.py
-@@ -3,7 +3,7 @@
- def add(a, b):
--    return a+b
-+    return a + b
-
-
-        """
-
-
     user_prompt = f"""
-        Task: Consolidate the following agent diffs into a single final unified diff for this source file. Go in order of ARCHITECTURE -> PERFORMANCE -> STYLE
+        Task: Consolidate the following agent diffs into a single final code file for this source file. Be sure to merge all refactoring diffs in a logical way. 
+                First start with the structural modifications done by the architecture diffs, then include the performance changes, then include the style modifications suggested.
 
         Original file path: {file_name}
-        Original content:
+
+        Original code:
         {file_content}
 
         Agent diffs:
@@ -153,30 +136,47 @@ Unified Diff Format (follow exactly):
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-3-flash",
             contents=f"{system_instruction}\n\n{user_prompt}",
             config=config
         )
         
-        # .parsed automatically returns the RefactorResult Pydantic object
         return response.parsed
 
     except Exception as e:
         print(f"Gemini API Error: {e}")
         return None
-    
+
+
+def consolidate_output_2(results):
+    """
+    Assume each agent is a blackbox that produces a correct refactoring. 
+
+    consolidate_output simply merges everything in one call, we want this one to be more efficient.
+
+    Approach:
+    Use unidiff python library to create unique objects for each agent's diff - we can then use these objects for final consolidation
+
+    Apply diffs in a specific order, if there is any overlap we disregard all those hunk's edits. Keep track of these hunk edits and the agent it came from
+
+    At the end of applying the hunks that had no overlap, we go through the skipped hunks, call the agent again but on the new code
+        We then repeat same process again until there are no overlapping hunks at all. 
+    """
+
+    priority_order = {"ARCHITECTURE": 0, "PERFORMANCE": 1, "STYLE": 2}
+    results_sorted = sorted(results, key=lambda r: priority_order[r.agent_type.value.upper()])
+    pass
 
 
 if __name__ == "__main__":
     test_redis()
     
     # Mock file data for testing
-    TEST_FILENAME = "/app/shared/test_file.py"
+    TEST_FILENAME = "/app/shared/test_file_2.py"
     current_batch_id = send_tasks(TEST_FILENAME)
 
     all_results = listen_for_results(expected_count=3)
     final_result = consolidate_output(all_results, TEST_FILENAME)
-    print(final_result.final_diff)
     SHARED_DIR = "/app/shared"
 
 
@@ -186,11 +186,12 @@ if __name__ == "__main__":
         delete=False,
         dir=SHARED_DIR,
     ) as tmp_file:
-        tmp_file.write(final_result.final_diff)
+        tmp_file.write(final_result.final_content)
         temp_path = tmp_file.name
 
     print(f"Final diff written to: {temp_path}")
-    
+
+
 
 
 
